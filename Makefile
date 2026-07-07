@@ -13,8 +13,9 @@ $(V_FILE_FINAL): $(SCALA_FILES)
 	CHISEL_FIRTOOL_PATH=$(FIRTOOL_PATCH_DIR)/firtool-$(FIRTOOL_VERSION)/bin \
 	mill -i ysyxsoc.runMain ysyx.Elaborate --target-dir $(@D)
 	mv $(V_FILE_GEN) $@
-	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
-	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
+	sed -i.bak -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+	sed -i.bak -e '/firrtl_black_box_resource_files.f/, $$d' $@
+	rm -f $@.bak
 
 verilog: $(V_FILE_FINAL)
 

@@ -40,6 +40,12 @@ replace_firtool() {
 update_firtool() {
     local firtool_update_version=$1
     local firtool_patch_dir=$2
+    local firtool_bin="$firtool_patch_dir/firtool-$firtool_update_version/bin/firtool"
+
+    if [ -x "$firtool_bin" ]; then
+        echo "Found existing firtool binary at $firtool_bin"
+        exit 0
+    fi
 
     case "$(uname -s)" in
         Linux*) firtool_arch="linux-x64";;
