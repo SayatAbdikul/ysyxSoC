@@ -62,22 +62,20 @@ localparam [4:0]
   CTRL_GAP     = 5'd10,
   XIP_GO       = 5'd11,
   GO_GAP       = 5'd12,
-  XIP_POLL     = 5'd13,
-  POLL_GAP     = 5'd14,
+  XIP_WAIT_IRQ = 5'd13,
   XIP_RX       = 5'd15,
   RX_GAP       = 5'd16,
   XIP_RESPONSE = 5'd17,
   XIP_ERROR    = 5'd18;
 
 localparam [31:0]
-  SPI_CTRL_CONFIG = 32'h00002440,
-  SPI_CTRL_START  = 32'h00002540;
+  SPI_CTRL_CONFIG = 32'h00003440,
+  SPI_CTRL_START  = 32'h00003540;
 
 reg [4:0] state;
 reg [31:0] xip_offset;
 reg [1:0] xip_byte_offset;
 reg [31:0] xip_rdata;
-reg poll_complete;
 
 reg  [4:0]  wb_addr;
 reg  [31:0] wb_wdata;
@@ -108,7 +106,6 @@ always @(posedge clock or posedge reset) begin
     xip_offset    <= 32'b0;
     xip_byte_offset <= 2'b0;
     xip_rdata     <= 32'b0;
-    poll_complete <= 1'b0;
   end else begin
     case (state)
       IDLE: begin
@@ -131,18 +128,8 @@ always @(posedge clock or posedge reset) begin
       XIP_CTRL:    if (wb_ack) state <= CTRL_GAP;
       CTRL_GAP:    state <= XIP_GO;
       XIP_GO:      if (wb_ack) state <= GO_GAP;
-      GO_GAP:      state <= XIP_POLL;
-
-      XIP_POLL: begin
-        if (wb_ack) begin
-          poll_complete <= (wb_rdata[8] == 1'b0);
-          state <= POLL_GAP;
-        end
-      end
-
-      POLL_GAP: begin
-        state <= poll_complete ? XIP_RX : XIP_POLL;
-      end
+      GO_GAP:      state <= XIP_WAIT_IRQ;
+      XIP_WAIT_IRQ: if (spi_irq_out) state <= XIP_RX;
 
       XIP_RX: begin
         if (wb_ack) begin
@@ -245,12 +232,6 @@ always @(*) begin
       wb_we    = 1'b1;
       wb_stb   = 1'b1;
       wb_cyc   = 1'b1;
-    end
-
-    XIP_POLL: begin
-      wb_addr = 5'h10;
-      wb_stb  = 1'b1;
-      wb_cyc  = 1'b1;
     end
 
     XIP_RX: begin
