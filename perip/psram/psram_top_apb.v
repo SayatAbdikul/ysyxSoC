@@ -19,6 +19,67 @@ module psram_top_apb (
 
   wire [3:0] din, dout, douten;
   wire ack;
+
+`ifndef SYNTHESIS
+  function automatic legal_write_strobe;
+    input [3:0] strobe;
+    begin
+      case (strobe)
+        4'b0001, 4'b0010, 4'b0100, 4'b1000,
+        4'b0011, 4'b1100, 4'b1111: legal_write_strobe = 1'b1;
+        default: legal_write_strobe = 1'b0;
+      endcase
+    end
+  endfunction
+
+  reg        apb_active;
+  reg [31:0] accepted_paddr;
+  reg        accepted_pwrite;
+  reg [31:0] accepted_pwdata;
+  reg [3:0]  accepted_pstrb;
+
+  // This supplied bridge launches its internal controller from APB setup.
+  // These checks make that exception explicit while enforcing the externally
+  // visible APB contract: exactly one setup, stable access payload, and an
+  // access-phase-only completion.
+  always @(posedge clock or posedge reset) begin
+    if (reset) begin
+      apb_active <= 1'b0;
+      accepted_paddr <= 32'b0;
+      accepted_pwrite <= 1'b0;
+      accepted_pwdata <= 32'b0;
+      accepted_pstrb <= 4'b0;
+    end else if (!apb_active) begin
+      if (in_psel) begin
+        assert (!in_penable)
+          else $error("psram_top_apb: transaction did not start in setup phase");
+        assert (!in_pwrite || legal_write_strobe(in_pstrb))
+          else $error("psram_top_apb: unsupported PSTRB %b", in_pstrb);
+        apb_active <= 1'b1;
+        accepted_paddr <= in_paddr;
+        accepted_pwrite <= in_pwrite;
+        accepted_pwdata <= in_pwdata;
+        accepted_pstrb <= in_pstrb;
+      end
+      assert (!(ack && in_psel))
+        else $error("psram_top_apb: completion without an active APB transfer");
+    end else begin
+      assert (in_psel && in_penable)
+        else $error("psram_top_apb: APB access phase was not held active");
+      assert (in_paddr == accepted_paddr &&
+              in_pwrite == accepted_pwrite &&
+              in_pwdata == accepted_pwdata &&
+              in_pstrb == accepted_pstrb)
+        else $error("psram_top_apb: APB payload changed during access");
+      if (ack) begin
+        assert (in_psel && in_penable)
+          else $error("psram_top_apb: completion occurred outside access phase");
+        apb_active <= 1'b0;
+      end
+    end
+  end
+`endif
+
   EF_PSRAM_CTRL_wb u0 (
     .clk_i(clock),
     .rst_i(reset),
