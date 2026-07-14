@@ -185,6 +185,10 @@ reg    [fifo_counter_w-1:0] count  = 'h0;
 reg                         overrun;
 wire [fifo_pointer_w-1:0] top_plus_1 = top + 1'b1;
 
+`ifdef VERILATOR
+import "DPI-C" function void ysyxsoc_uart_putc(input int ch);
+`endif
+
 raminfr #(fifo_pointer_w,fifo_width,fifo_depth) tfifo
         (   .clk (clk),
             .we  (push),
@@ -212,6 +216,9 @@ begin
                 top   <= #1 top_plus_1;
                 count <= #1 count + 1'b1;
                 $write("%c", data_in);
+`ifdef VERILATOR
+                ysyxsoc_uart_putc({24'b0, data_in});
+`endif
             end
         2'b01 : if(count>0)
             begin
@@ -222,6 +229,9 @@ begin
                 bottom <= #1 bottom + 1'b1;
                 top    <= #1 top_plus_1;
                 $write("%c", data_in);
+`ifdef VERILATOR
+                ysyxsoc_uart_putc({24'b0, data_in});
+`endif
                 end
         default: ;
         endcase
