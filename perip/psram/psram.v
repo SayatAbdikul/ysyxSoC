@@ -1,6 +1,9 @@
 `timescale 1ns/1ps
 
-module psram(
+module psram #(
+  parameter QPI_SUPPORTED = 1'b1
+) (
+  input reset,
   input sck,
   input ce_n,
   inout [3:0] dio
@@ -22,6 +25,7 @@ module psram(
   assign dio = dio_oe ? dio_out : 4'bz;
 
   reg [2:0] phase;
+  reg       qpi_mode;
 
   reg [7:0]  opcode_shift;
   reg [3:0]  command_count;
@@ -44,6 +48,7 @@ module psram(
   // left uninitialized so software cannot depend on a power-on RAM value.
   initial begin
     phase               = PH_IDLE;
+    qpi_mode            = 1'b0;
     opcode_shift        = 8'b0;
     command_count       = 4'b0;
     address_shift       = 20'b0;
@@ -62,8 +67,25 @@ module psram(
   // addresses, and write data are therefore sampled on rising SCK edges.
   // Read data is also selected here, leaving it stable for the controller's
   // following falling-edge sample.
-  always @(posedge sck or posedge ce_n) begin
-    if (ce_n) begin
+  always @(posedge sck or posedge ce_n or posedge reset) begin
+    if (reset) begin
+      // Device reset returns the protocol to its documented SPI power-on
+      // mode without initializing the volatile data array.
+      phase               <= PH_IDLE;
+      qpi_mode            <= 1'b0;
+      opcode_shift        <= 8'b0;
+      command_count       <= 4'b0;
+      address_shift       <= 20'b0;
+      address_count       <= 3'b0;
+      transaction_address <= 22'b0;
+      dummy_count         <= 3'b0;
+      read_nibble_index   <= 4'b0;
+      write_nibble_index  <= 3'b0;
+      write_high_nibble   <= 4'b0;
+      write_byte_index    <= 3'b0;
+      dio_oe              <= 1'b0;
+      dio_out             <= 4'b0;
+    end else if (ce_n) begin
       // Raising CE terminates (or aborts) every transaction immediately.
       phase              <= PH_IDLE;
       command_count      <= 4'b0;
@@ -77,26 +99,47 @@ module psram(
     end else begin
       case (phase)
         PH_IDLE: begin
-          // Commands are single-bit SPI, MSB first, on DIO[0].
-          opcode_shift  <= {7'b0, dio_in[0]};
+          // SPI commands arrive one bit at a time. Once 35h has selected QPI,
+          // commands arrive as two MSB-first nibbles over all four DIO pins.
+          opcode_shift  <= qpi_mode ? {4'b0, dio_in} :
+                                      {7'b0, dio_in[0]};
           command_count <= 4'd1;
           phase         <= PH_CMD;
           dio_oe        <= 1'b0;
         end
 
         PH_CMD: begin
-          opcode_shift <= {opcode_shift[6:0], dio_in[0]};
-          if (command_count == 4'd7) begin
+          opcode_shift <= qpi_mode ? {opcode_shift[3:0], dio_in} :
+                                     {opcode_shift[6:0], dio_in[0]};
+          if ((qpi_mode && command_count == 4'd1) ||
+              (!qpi_mode && command_count == 4'd7)) begin
             command_count <= 4'b0;
             address_shift <= 20'b0;
             address_count <= 3'b0;
-            if ({opcode_shift[6:0], dio_in[0]} == 8'heb)
+            if ((qpi_mode ? {opcode_shift[3:0], dio_in} :
+                            {opcode_shift[6:0], dio_in[0]}) == 8'heb)
               phase <= PH_ADDR;
-            else if ({opcode_shift[6:0], dio_in[0]} == 8'h38)
+            else if ((qpi_mode ? {opcode_shift[3:0], dio_in} :
+                                 {opcode_shift[6:0], dio_in[0]}) == 8'h38)
               phase <= PH_ADDR;
+            else if (!qpi_mode &&
+                     {opcode_shift[6:0], dio_in[0]} == 8'h35) begin
+              if (QPI_SUPPORTED) begin
+                qpi_mode <= 1'b1;
+                phase    <= PH_IDLE;
+              end else begin
+                $error("psram: QPI mode entry unsupported");
+                phase <= PH_IDLE;
+              end
+            end else if (qpi_mode &&
+                         {opcode_shift[3:0], dio_in} == 8'hf5) begin
+              qpi_mode <= 1'b0;
+              phase    <= PH_IDLE;
+            end
             else begin
               $error("psram: unsupported command 0x%02x",
-                     {opcode_shift[6:0], dio_in[0]});
+                     qpi_mode ? {opcode_shift[3:0], dio_in} :
+                                {opcode_shift[6:0], dio_in[0]});
               phase <= PH_IDLE;
             end
           end else begin

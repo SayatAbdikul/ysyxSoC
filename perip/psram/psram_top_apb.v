@@ -1,4 +1,10 @@
-module psram_top_apb (
+module psram_top_apb #(
+`ifdef YSYXSOC_PSRAM_QPI
+  parameter QPI_MODE = 1'b1
+`else
+  parameter QPI_MODE = 1'b0
+`endif
+) (
   input         clock,
   input         reset,
   input  [31:0] in_paddr,
@@ -80,7 +86,7 @@ module psram_top_apb (
   end
 `endif
 
-  EF_PSRAM_CTRL_wb u0 (
+  EF_PSRAM_CTRL_wb #(.QPI_MODE(QPI_MODE)) u0 (
     .clk_i(clock),
     .rst_i(reset),
     .adr_i(in_paddr),

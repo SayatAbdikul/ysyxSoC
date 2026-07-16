@@ -18,7 +18,9 @@
 `default_nettype        none
 
 // Using EBH Command
-module EF_PSRAM_CTRL_wb (
+module EF_PSRAM_CTRL_wb #(
+    parameter QPI_MODE = 1'b0
+) (
     // WB bus Interface
     input   wire        clk_i,
     input   wire        rst_i,
@@ -41,6 +43,38 @@ module EF_PSRAM_CTRL_wb (
 
     localparam  ST_IDLE = 1'b0,
                 ST_WAIT = 1'b1;
+
+    // IS66WVS4M8ALL datasheet, sections 4.4/4.5 and 5.3:
+    // https://www.issi.com/WW/pdf/66-67WVS4M8ALL-BLL.pdf
+    // The device powers up in SPI mode. In the QPI build this sequencer sends
+    // 35h once, one bit per clock on DIO0, before exposing memory traffic to
+    // the ordinary reader/writer engines.
+    localparam [7:0] QPI_ENTER_CMD = 8'h35;
+    reg qpi_ready;
+    reg qpi_init_sck;
+    reg qpi_init_ce_n;
+    reg [3:0] qpi_init_counter;
+    wire qpi_initializing = QPI_MODE && !qpi_ready;
+
+    always @ (posedge clk_i or posedge rst_i)
+        if (rst_i) begin
+            qpi_ready        <= !QPI_MODE;
+            qpi_init_sck     <= 1'b0;
+            qpi_init_ce_n    <= 1'b1;
+            qpi_init_counter <= 4'b0;
+        end else if (qpi_initializing) begin
+            qpi_init_ce_n <= 1'b0;
+            qpi_init_sck  <= ~qpi_init_sck;
+            if (qpi_init_sck) begin
+                if (qpi_init_counter == 4'd7) begin
+                    qpi_ready     <= 1'b1;
+                    qpi_init_sck  <= 1'b0;
+                    qpi_init_ce_n <= 1'b1;
+                end else begin
+                    qpi_init_counter <= qpi_init_counter + 1'b1;
+                end
+            end
+        end
 
     wire        mr_sck;
     wire        mr_ce_n;
@@ -79,7 +113,7 @@ module EF_PSRAM_CTRL_wb (
     always @* begin
         case(state)
             ST_IDLE :
-                if(wb_valid)
+                if(wb_valid && qpi_ready)
                     nstate = ST_WAIT;
                 else
                     nstate = ST_IDLE;
@@ -127,10 +161,10 @@ module EF_PSRAM_CTRL_wb (
                         2'b00;
                       */
 
-    assign mr_rd    = ( (state==ST_IDLE ) & wb_re );
-    assign mw_wr    = ( (state==ST_IDLE ) & wb_we );
+    assign mr_rd    = ((state==ST_IDLE) & wb_re & qpi_ready);
+    assign mw_wr    = ((state==ST_IDLE) & wb_we & qpi_ready);
 
-    PSRAM_READER MR (
+    PSRAM_READER #(.QPI_MODE(QPI_MODE)) MR (
         .clk(clk_i),
         .rst_n(~rst_i),
         .addr({adr_i[23:2],2'b0}),
@@ -146,7 +180,7 @@ module EF_PSRAM_CTRL_wb (
         .douten(mr_doe)
     );
 
-    PSRAM_WRITER MW (
+    PSRAM_WRITER #(.QPI_MODE(QPI_MODE)) MW (
         .clk(clk_i),
         .rst_n(~rst_i),
         .addr({adr_i[23:0]}),
@@ -161,12 +195,36 @@ module EF_PSRAM_CTRL_wb (
         .douten(mw_doe)
     );
 
-    assign sck  = wb_we ? mw_sck  : mr_sck;
-    assign ce_n = wb_we ? mw_ce_n : mr_ce_n;
-    assign dout = wb_we ? mw_dout : mr_dout;
-    assign douten  = wb_we ? {4{mw_doe}}  : {4{mr_doe}};
+    assign sck = qpi_initializing ? qpi_init_sck :
+                 (wb_we ? mw_sck : mr_sck);
+    assign ce_n = qpi_initializing ? qpi_init_ce_n :
+                  (wb_we ? mw_ce_n : mr_ce_n);
+    assign dout = qpi_initializing ?
+                  {3'b0, QPI_ENTER_CMD[7-qpi_init_counter]} :
+                  (wb_we ? mw_dout : mr_dout);
+    assign douten = qpi_initializing ? 4'b0001 :
+                    (wb_we ? {4{mw_doe}} : {4{mr_doe}});
 
     assign mw_din = din;
     assign mr_din = din;
-    assign ack_o = wb_we ? mw_done :mr_done ;
+    assign ack_o = qpi_ready && (wb_we ? mw_done : mr_done);
+
+`ifndef SYNTHESIS
+    reg qpi_entry_seen;
+    always @(posedge clk_i or posedge rst_i)
+        if (rst_i)
+            qpi_entry_seen <= 1'b0;
+        else if (qpi_initializing && qpi_init_sck &&
+                 qpi_init_counter == 4'd7) begin
+            assert (!qpi_entry_seen)
+                else $error("EF_PSRAM_CTRL_wb: repeated QPI mode entry");
+            qpi_entry_seen <= 1'b1;
+        end
+
+    always @(posedge clk_i or posedge rst_i)
+        if (rst_i) begin
+        end else if (QPI_MODE && !qpi_ready)
+            assert (!(mr_rd || mw_wr || ack_o))
+                else $error("EF_PSRAM_CTRL_wb: memory traffic before QPI entry");
+`endif
 endmodule

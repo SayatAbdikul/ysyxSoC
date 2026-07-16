@@ -41,7 +41,9 @@
 `timescale              1ns/1ps
 `default_nettype        none
 
-module PSRAM_READER (
+module PSRAM_READER #(
+    parameter QPI_MODE = 1'b0
+) (
     input   wire            clk,
     input   wire            rst_n,
     input   wire [23:0]     addr,
@@ -60,7 +62,8 @@ module PSRAM_READER (
     localparam  IDLE = 1'b0,
                 READ = 1'b1;
 
-    wire [7:0]  FINAL_COUNT = 19 + size*2; // was 27: Always read 1 word
+    localparam [7:0] DATA_START = QPI_MODE ? 8'd14 : 8'd20;
+    wire [7:0]  FINAL_COUNT = DATA_START - 1'b1 + size*2;
 
     reg         state, nstate;
     reg [7:0]   counter;
@@ -113,22 +116,31 @@ module PSRAM_READER (
             saddr <= {addr[23:0]};
 
     // Sample with the negedge of sck
-    wire[1:0] byte_index = {counter[7:1] - 8'd10}[1:0];
+    wire [7:0] data_nibble_index = counter - DATA_START;
+    wire[1:0] byte_index = data_nibble_index[2:1];
     always @ (posedge clk)
-        if(counter >= 20 && counter <= FINAL_COUNT)
+        if(counter >= DATA_START && counter <= FINAL_COUNT)
             if(sck)
                 data[byte_index] <= {data[byte_index][3:0], din}; // Optimize!
 
-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
-                        (counter == 8)  ?   saddr[23:20]        :
-                        (counter == 9)  ?   saddr[19:16]        :
-                        (counter == 10) ?   saddr[15:12]        :
-                        (counter == 11) ?   saddr[11:8]         :
-                        (counter == 12) ?   saddr[7:4]          :
-                        (counter == 13) ?   saddr[3:0]          :
-                        4'h0;
+    assign dout = QPI_MODE ?
+                        ((counter == 0) ? CMD_EBH[7:4] :
+                         (counter == 1) ? CMD_EBH[3:0] :
+                         (counter == 2) ? saddr[23:20] :
+                         (counter == 3) ? saddr[19:16] :
+                         (counter == 4) ? saddr[15:12] :
+                         (counter == 5) ? saddr[11:8]  :
+                         (counter == 6) ? saddr[7:4]   :
+                         (counter == 7) ? saddr[3:0]   : 4'h0) :
+                        ((counter < 8)   ? {3'b0, CMD_EBH[7-counter]} :
+                         (counter == 8)  ? saddr[23:20] :
+                         (counter == 9)  ? saddr[19:16] :
+                         (counter == 10) ? saddr[15:12] :
+                         (counter == 11) ? saddr[11:8]  :
+                         (counter == 12) ? saddr[7:4]   :
+                         (counter == 13) ? saddr[3:0]   : 4'h0);
 
-    assign douten   = (counter < 14);
+    assign douten = QPI_MODE ? (counter < 8) : (counter < 14);
 
     assign done     = (counter == FINAL_COUNT+1);
 
@@ -142,7 +154,9 @@ module PSRAM_READER (
 endmodule
 
 // Using 38H Command
-module PSRAM_WRITER (
+module PSRAM_WRITER #(
+    parameter QPI_MODE = 1'b0
+) (
     input   wire            clk,
     input   wire            rst_n,
     input   wire [23:0]     addr,
@@ -161,7 +175,8 @@ module PSRAM_WRITER (
     localparam  IDLE = 1'b0,
                 WRITE = 1'b1;
 
-    wire[7:0]        FINAL_COUNT = 13 + size*2;
+    localparam [7:0] DATA_START = QPI_MODE ? 8'd8 : 8'd14;
+    wire[7:0]        FINAL_COUNT = DATA_START - 1'b1 + size*2;
 
     reg         state, nstate;
     reg [7:0]   counter;
@@ -212,21 +227,37 @@ module PSRAM_WRITER (
         else if((state == IDLE) && wr)
             saddr <= addr;
 
-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
-                        (counter == 8)  ?   saddr[23:20]        :
-                        (counter == 9)  ?   saddr[19:16]        :
-                        (counter == 10) ?   saddr[15:12]        :
-                        (counter == 11) ?   saddr[11:8]         :
-                        (counter == 12) ?   saddr[7:4]          :
-                        (counter == 13) ?   saddr[3:0]          :
-                        (counter == 14) ?   line[7:4]           :
-                        (counter == 15) ?   line[3:0]           :
-                        (counter == 16) ?   line[15:12]         :
-                        (counter == 17) ?   line[11:8]          :
-                        (counter == 18) ?   line[23:20]         :
-                        (counter == 19) ?   line[19:16]         :
-                        (counter == 20) ?   line[31:28]         :
-                        line[27:24];
+    wire [7:0] data_nibble_index = counter - DATA_START;
+    reg [3:0] data_nibble;
+    always @* begin
+        case (data_nibble_index)
+            0: data_nibble = line[7:4];
+            1: data_nibble = line[3:0];
+            2: data_nibble = line[15:12];
+            3: data_nibble = line[11:8];
+            4: data_nibble = line[23:20];
+            5: data_nibble = line[19:16];
+            6: data_nibble = line[31:28];
+            default: data_nibble = line[27:24];
+        endcase
+    end
+
+    assign dout = QPI_MODE ?
+                        ((counter == 0) ? CMD_38H[7:4] :
+                         (counter == 1) ? CMD_38H[3:0] :
+                         (counter == 2) ? saddr[23:20] :
+                         (counter == 3) ? saddr[19:16] :
+                         (counter == 4) ? saddr[15:12] :
+                         (counter == 5) ? saddr[11:8]  :
+                         (counter == 6) ? saddr[7:4]   :
+                         (counter == 7) ? saddr[3:0]   : data_nibble) :
+                        ((counter < 8)   ? {3'b0, CMD_38H[7-counter]} :
+                         (counter == 8)  ? saddr[23:20] :
+                         (counter == 9)  ? saddr[19:16] :
+                         (counter == 10) ? saddr[15:12] :
+                         (counter == 11) ? saddr[11:8]  :
+                         (counter == 12) ? saddr[7:4]   :
+                         (counter == 13) ? saddr[3:0]   : data_nibble);
 
     assign douten   = (~ce_n);
 

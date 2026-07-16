@@ -25,7 +25,15 @@ class psram_top_apb extends BlackBox {
 }
 
 class psram extends BlackBox {
-  val io = IO(Flipped(new QSPIIO))
+  val io = IO(new Bundle {
+    // Simulation-model-only reset. This is not a physical PSRAM package pin;
+    // it keeps the behavioral model's SPI/QPI mode synchronized with the
+    // controller whenever ysyxSoC is reset.
+    val reset = Input(Reset())
+    val sck = Input(Bool())
+    val ce_n = Input(Bool())
+    val dio = Analog(4.W)
+  })
 }
 
 class psramChisel extends RawModule {
