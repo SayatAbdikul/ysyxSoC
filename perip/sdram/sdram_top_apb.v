@@ -77,4 +77,41 @@ module sdram_top_apb (
     .sdram_data_out_en_o(sdram_dout_en)
   );
 
+`ifndef SYNTHESIS
+  reg        apb_access_active;
+  reg [31:0] apb_access_addr;
+  reg        apb_access_write;
+  reg [2:0]  apb_access_prot;
+  reg [31:0] apb_access_wdata;
+  reg [3:0]  apb_access_strb;
+
+  always @(posedge clock) begin
+    if (reset) begin
+      apb_access_active <= 1'b0;
+      apb_access_addr <= 32'b0;
+      apb_access_write <= 1'b0;
+      apb_access_prot <= 3'b0;
+      apb_access_wdata <= 32'b0;
+      apb_access_strb <= 4'b0;
+    end else begin
+      if (in_psel && !in_penable) begin
+        apb_access_active <= 1'b1;
+        apb_access_addr <= in_paddr;
+        apb_access_write <= in_pwrite;
+        apb_access_prot <= in_pprot;
+        apb_access_wdata <= in_pwdata;
+        apb_access_strb <= in_pstrb;
+      end
+      if (in_psel && in_penable && apb_access_active) begin
+        assert (in_paddr == apb_access_addr && in_pwrite == apb_access_write &&
+                in_pprot == apb_access_prot &&
+                in_pwdata == apb_access_wdata && in_pstrb == apb_access_strb)
+          else $error("sdram_top_apb: APB request changed during access phase");
+        if (in_pready)
+          apb_access_active <= 1'b0;
+      end
+    end
+  end
+`endif
+
 endmodule
