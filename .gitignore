@@ -1,3 +1,6 @@
 build/
+build-sdram32/
+build-sdram-wordext/
 out/
 patch/firtool/
+mill.*

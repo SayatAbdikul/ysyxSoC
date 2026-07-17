@@ -43,7 +43,8 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
   val lmrom = LazyModule(new AXI4MROM(AddressSet.misaligned(0x20000000, 0x1000)))
   val sramNode = AXI4RAM(AddressSet.misaligned(0x0f000000, 0x2000).head, false, true, 4, None, Nil, false)
 
-  val sdramAddressSet = AddressSet.misaligned(0xa0000000L, 0x2000000)
+  val sdramBytes = 0x2000000L * (Config.sdramDataWidth / 16) * Config.sdramChipPairs
+  val sdramAddressSet = AddressSet.misaligned(0xa0000000L, sdramBytes)
   val lsdram_apb = if (!Config.sdramUseAXI) Some(LazyModule(new APBSDRAM (sdramAddressSet))) else None
   val lsdram_axi = if ( Config.sdramUseAXI) Some(LazyModule(new AXI4SDRAM(sdramAddressSet))) else None
 
@@ -145,7 +146,7 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
     psram.io.sck := masic.psram.sck
     psram.io.ce_n := masic.psram.ce_n
     psram.io.dio <> masic.psram.dio
-    val sdram = Module(new sdram)
+    val sdram = Module(new sdram_array(Config.sdramDataWidth, Config.sdramChipPairs))
     sdram.io <> masic.sdram
 
     val externalPins = IO(new Bundle{

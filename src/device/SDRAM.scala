@@ -10,17 +10,18 @@ import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
-class SDRAMIO extends Bundle {
+class SDRAMIO(dataWidth: Int = Config.sdramDataWidth,
+              chipPairs: Int = Config.sdramChipPairs) extends Bundle {
   val clk = Output(Bool())
   val cke = Output(Bool())
-  val cs  = Output(Bool())
+  val cs  = Output(UInt(chipPairs.W))
   val ras = Output(Bool())
   val cas = Output(Bool())
   val we  = Output(Bool())
   val a   = Output(UInt(13.W))
   val ba  = Output(UInt(2.W))
-  val dqm = Output(UInt(2.W))
-  val dq  = Analog(16.W)
+  val dqm = Output(UInt((dataWidth / 8).W))
+  val dq  = Analog(dataWidth.W)
 }
 
 class sdram_top_axi extends BlackBox {
@@ -32,17 +33,23 @@ class sdram_top_axi extends BlackBox {
   })
 }
 
-class sdram_top_apb extends BlackBox {
+class sdram_top_apb(dataWidth: Int = Config.sdramDataWidth,
+                    chipPairs: Int = Config.sdramChipPairs)
+  extends BlackBox(Map("SDRAM_DATA_W" -> dataWidth,
+                       "SDRAM_CHIP_PAIRS" -> chipPairs)) {
   val io = IO(new Bundle {
     val clock = Input(Clock())
     val reset = Input(Bool())
     val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
-    val sdram = new SDRAMIO
+    val sdram = new SDRAMIO(dataWidth, chipPairs)
   })
 }
 
-class sdram extends BlackBox {
-  val io = IO(Flipped(new SDRAMIO))
+class sdram_array(dataWidth: Int = Config.sdramDataWidth,
+                  chipPairs: Int = Config.sdramChipPairs)
+  extends BlackBox(Map("SDRAM_DATA_W" -> dataWidth,
+                       "SDRAM_CHIP_PAIRS" -> chipPairs)) {
+  val io = IO(Flipped(new SDRAMIO(dataWidth, chipPairs)))
 }
 
 class sdramChisel extends RawModule {
@@ -64,7 +71,7 @@ class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyMo
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val sdram_bundle = IO(new SDRAMIO)
+    val sdram_bundle = IO(new SDRAMIO(Config.sdramDataWidth, Config.sdramChipPairs))
 
     val msdram = Module(new sdram_top_axi)
     msdram.io.clock := clock
@@ -88,7 +95,7 @@ class APBSDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyMod
     val (in, _) = node.in(0)
     val sdram_bundle = IO(new SDRAMIO)
 
-    val msdram = Module(new sdram_top_apb)
+    val msdram = Module(new sdram_top_apb(Config.sdramDataWidth, Config.sdramChipPairs))
     msdram.io.clock := clock
     msdram.io.reset := reset.asBool
     msdram.io.in <> in

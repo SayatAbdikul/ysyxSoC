@@ -153,6 +153,9 @@ u_axi
 //-----------------------------------------------------------------
 // SDRAM Controller
 //-----------------------------------------------------------------
+wire sdram_broadcast_unused_w;
+wire sdram_pair_unused_w;
+
 sdram_axi_core
 #(
      .SDRAM_MHZ(SDRAM_MHZ)
@@ -187,6 +190,8 @@ u_core
     ,.sdram_data_output_o(sdram_data_output_o)
     ,.sdram_data_out_en_o(sdram_data_out_en_o)
     ,.sdram_data_input_i(sdram_data_input_i)
+    ,.sdram_broadcast_o(sdram_broadcast_unused_w)
+    ,.sdram_pair_o(sdram_pair_unused_w)
 );
 
 

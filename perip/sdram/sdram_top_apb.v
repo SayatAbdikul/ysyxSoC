@@ -1,4 +1,7 @@
-module sdram_top_apb (
+module sdram_top_apb #(
+  parameter SDRAM_DATA_W = 16,
+  parameter SDRAM_CHIP_PAIRS = 1
+) (
   input         clock,
   input         reset,
   input  [31:0] in_paddr,
@@ -14,19 +17,36 @@ module sdram_top_apb (
 
   output        sdram_clk,
   output        sdram_cke,
-  output        sdram_cs,
+  output reg [SDRAM_CHIP_PAIRS-1:0] sdram_cs,
   output        sdram_ras,
   output        sdram_cas,
   output        sdram_we,
   output [12:0] sdram_a,
   output [ 1:0] sdram_ba,
-  output [ 1:0] sdram_dqm,
-  inout  [15:0] sdram_dq
+  output [(SDRAM_DATA_W/8)-1:0] sdram_dqm,
+  inout  [SDRAM_DATA_W-1:0] sdram_dq
 );
 
   wire sdram_dout_en;
-  wire [15:0] sdram_dout;
-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
+  wire [SDRAM_DATA_W-1:0] sdram_dout;
+  wire sdram_core_cs;
+  wire sdram_broadcast;
+  wire sdram_pair;
+  assign sdram_dq = sdram_dout_en ? sdram_dout : {SDRAM_DATA_W{1'bz}};
+
+  generate
+    if (SDRAM_CHIP_PAIRS == 1) begin : gen_single_pair_cs
+      always @(*) sdram_cs = sdram_core_cs;
+    end else begin : gen_two_pair_cs
+      always @(*) begin
+        if (sdram_broadcast)
+          sdram_cs = {2{sdram_core_cs}};
+        else
+          sdram_cs = sdram_pair ? {sdram_core_cs, 1'b1} :
+                                  {1'b1, sdram_core_cs};
+      end
+    end
+  endgenerate
 
   typedef enum [1:0] { ST_IDLE, ST_WAIT_ACCEPT, ST_WAIT_ACK } state_t;
   reg [1:0] state;
@@ -49,7 +69,9 @@ module sdram_top_apb (
     .SDRAM_MHZ(100),
     .SDRAM_ADDR_W(24),
     .SDRAM_COL_W(9),
-    .SDRAM_READ_LATENCY(2)
+    .SDRAM_READ_LATENCY(2),
+    .SDRAM_DATA_W(SDRAM_DATA_W),
+    .SDRAM_CHIP_PAIRS(SDRAM_CHIP_PAIRS)
   ) u_sdram_ctrl(
     .clk_i(clock),
     .rst_i(reset),
@@ -65,7 +87,9 @@ module sdram_top_apb (
 
     .sdram_clk_o(sdram_clk),
     .sdram_cke_o(sdram_cke),
-    .sdram_cs_o(sdram_cs),
+    .sdram_cs_o(sdram_core_cs),
+    .sdram_broadcast_o(sdram_broadcast),
+    .sdram_pair_o(sdram_pair),
     .sdram_ras_o(sdram_ras),
     .sdram_cas_o(sdram_cas),
     .sdram_we_o(sdram_we),

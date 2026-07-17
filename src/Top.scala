@@ -8,6 +8,12 @@ import freechips.rocketchip.diplomacy.LazyModule
 object Config {
   def hasChipLink: Boolean = false
   def sdramUseAXI: Boolean = false
+  def sdramDataWidth: Int = sys.env.getOrElse("YSYXSOC_SDRAM_DATA_WIDTH", "16").toInt
+  def sdramChipPairs: Int = sys.env.getOrElse("YSYXSOC_SDRAM_CHIP_PAIRS", "1").toInt
+  require(sdramDataWidth == 16 || sdramDataWidth == 32,
+    "SDRAM data width must be 16 or 32")
+  require(sdramChipPairs == 1 || (sdramDataWidth == 32 && sdramChipPairs == 2),
+    "two SDRAM chip pairs require the 32-bit interface")
 }
 
 class ysyxSoCTop extends Module {

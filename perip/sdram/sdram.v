@@ -1,4 +1,6 @@
-module sdram(
+module sdram #(
+  parameter REQUIRED_BURST_LENGTH = 2
+)(
   input        clk,
   input        cke,
   input        cs,
@@ -107,7 +109,7 @@ module sdram(
     row_open = 4'b0;
     for (i = 0; i < BANKS; i = i + 1)
       active_row[i] = 13'b0;
-    burst_length = 4'd2;
+    burst_length = REQUIRED_BURST_LENGTH;
     cas_latency = 3'd2;
     interleaved_burst = 1'b0;
     read_pending = 1'b0;
@@ -281,7 +283,9 @@ module sdram(
             default: burst_length <= 4'd0;
           endcase
 `ifndef SYNTHESIS
-          assert (a[2:0] == 3'b001 && a[3] == 1'b0 && a[6:4] == 3'b010)
+          assert (((REQUIRED_BURST_LENGTH == 1 && a[2:0] == 3'b000) ||
+                   (REQUIRED_BURST_LENGTH == 2 && a[2:0] == 3'b001)) &&
+                  a[3] == 1'b0 && a[6:4] == 3'b010)
             else $error("sdram: unsupported mode BL=%03b type=%0b CL=%03b",
                         a[2:0], a[3], a[6:4]);
 `endif
