@@ -2,6 +2,7 @@ V_FILE_GEN   = build/ysyxSoCTop.sv
 V_FILE_FINAL = build/ysyxSoCFull.v
 V_FILE_SDRAM32 = build-sdram32/ysyxSoCFull.v
 V_FILE_SDRAM_WORDEXT = build-sdram-wordext/ysyxSoCFull.v
+V_FILE_CHIPLINK = build-chiplink/ysyxSoCFull-ChipLink.v
 SCALA_FILES = $(shell find src/ -name "*.scala")
 
 # Firtool version
@@ -46,6 +47,19 @@ $(V_FILE_SDRAM_WORDEXT): $(SCALA_FILES)
 verilog-sdram32: $(V_FILE_SDRAM32)
 verilog-sdram-wordext: $(V_FILE_SDRAM_WORDEXT)
 
+$(V_FILE_CHIPLINK): $(SCALA_FILES)
+	@./patch/update-firtool.sh $(FIRTOOL_VERSION) $(FIRTOOL_PATCH_DIR)
+	mkdir -p $(@D)
+	YSYXSOC_HAS_CHIPLINK=1 \
+	CHISEL_FIRTOOL_PATH=$(FIRTOOL_PATCH_DIR)/firtool-$(FIRTOOL_VERSION)/bin \
+	mill -i ysyxsoc.runMain ysyx.Elaborate --target-dir $(@D)
+	mv $(@D)/ysyxSoCTop.sv $@
+	sed -i.bak -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+	sed -i.bak -e '/firrtl_black_box_resource_files.f/, $$d' $@
+	rm -f $@.bak
+
+verilog-chiplink: $(V_FILE_CHIPLINK)
+
 clean:
 	-rm -rf build/
 
@@ -53,4 +67,4 @@ dev-init:
 	git submodule update --init --recursive
 	cd rocket-chip && git apply ../patch/rocket-chip.patch
 
-.PHONY: verilog verilog-sdram32 verilog-sdram-wordext clean dev-init
+.PHONY: verilog verilog-sdram32 verilog-sdram-wordext verilog-chiplink clean dev-init

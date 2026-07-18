@@ -105,6 +105,7 @@ class ysyxSoCFPGA(implicit p: Parameters) extends ChipLinkSlave
 
 
 class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+  private val chipLinkPeerBytes = 4096
   val asic = LazyModule(new ysyxSoCASIC)
   ElaborationArtefacts.add("graphml", graphML)
 
@@ -122,7 +123,7 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
 
       (fpga.master_mem zip fpga.axi4MasterMemNode.in).map { case (io, (_, edge)) =>
         val mem = LazyModule(new SimAXIMem(edge,
-          base = ChipLinkParam.mem.base, size = ChipLinkParam.mem.mask + 1))
+          base = ChipLinkParam.mem.base, size = chipLinkPeerBytes))
         Module(mem.module)
         mem.io_axi4.head <> io
       }

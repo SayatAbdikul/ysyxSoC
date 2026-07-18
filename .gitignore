@@ -1,4 +1,5 @@
 build/
+build-chiplink/
 build-sdram32/
 build-sdram-wordext/
 out/

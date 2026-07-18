@@ -6,7 +6,7 @@ import freechips.rocketchip.system._
 import freechips.rocketchip.diplomacy.LazyModule
 
 object Config {
-  def hasChipLink: Boolean = false
+  def hasChipLink: Boolean = sys.env.getOrElse("YSYXSOC_HAS_CHIPLINK", "0") == "1"
   def sdramUseAXI: Boolean = false
   def sdramDataWidth: Int = sys.env.getOrElse("YSYXSOC_SDRAM_DATA_WIDTH", "16").toInt
   def sdramChipPairs: Int = sys.env.getOrElse("YSYXSOC_SDRAM_CHIP_PAIRS", "1").toInt
