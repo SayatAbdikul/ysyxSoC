@@ -63,7 +63,7 @@ class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyMo
         address       = address,
         executable    = true,
         supportsWrite = TransferSizes(1, beatBytes),
-        supportsRead  = TransferSizes(1, beatBytes),
+        supportsRead  = TransferSizes(1, 16),
         interleavedId = Some(0))
     ),
     beatBytes  = beatBytes)))

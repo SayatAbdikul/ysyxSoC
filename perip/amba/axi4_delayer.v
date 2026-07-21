@@ -2,95 +2,122 @@ module axi4_delayer(
   input         clock,
   input         reset,
 
-  output        in_arready,
-  input         in_arvalid,
-  input  [3:0]  in_arid,
-  input  [31:0] in_araddr,
-  input  [7:0]  in_arlen,
-  input  [2:0]  in_arsize,
-  input  [1:0]  in_arburst,
-  input         in_rready,
-  output        in_rvalid,
-  output [3:0]  in_rid,
-  output [31:0] in_rdata,
-  output [1:0]  in_rresp,
-  output        in_rlast,
-  output        in_awready,
-  input         in_awvalid,
-  input  [3:0]  in_awid,
-  input  [31:0] in_awaddr,
-  input  [7:0]  in_awlen,
-  input  [2:0]  in_awsize,
-  input  [1:0]  in_awburst,
-  output        in_wready,
-  input         in_wvalid,
-  input  [31:0] in_wdata,
-  input  [3:0]  in_wstrb,
-  input         in_wlast,
-                in_bready,
-  output        in_bvalid,
-  output [3:0]  in_bid,
-  output [1:0]  in_bresp,
+  output        in_aw_ready,
+  input         in_aw_valid,
+  input  [3:0]  in_aw_bits_id,
+  input  [31:0] in_aw_bits_addr,
+  input  [7:0]  in_aw_bits_len,
+  input  [2:0]  in_aw_bits_size,
+  input  [1:0]  in_aw_bits_burst,
+  input         in_aw_bits_lock,
+  input  [3:0]  in_aw_bits_cache,
+  input  [2:0]  in_aw_bits_prot,
+  input  [3:0]  in_aw_bits_qos,
+  output        in_w_ready,
+  input         in_w_valid,
+  input  [31:0] in_w_bits_data,
+  input  [3:0]  in_w_bits_strb,
+  input         in_w_bits_last,
+  input         in_b_ready,
+  output        in_b_valid,
+  output [3:0]  in_b_bits_id,
+  output [1:0]  in_b_bits_resp,
+  output        in_ar_ready,
+  input         in_ar_valid,
+  input  [3:0]  in_ar_bits_id,
+  input  [31:0] in_ar_bits_addr,
+  input  [7:0]  in_ar_bits_len,
+  input  [2:0]  in_ar_bits_size,
+  input  [1:0]  in_ar_bits_burst,
+  input         in_ar_bits_lock,
+  input  [3:0]  in_ar_bits_cache,
+  input  [2:0]  in_ar_bits_prot,
+  input  [3:0]  in_ar_bits_qos,
+  input         in_r_ready,
+  output        in_r_valid,
+  output [3:0]  in_r_bits_id,
+  output [31:0] in_r_bits_data,
+  output [1:0]  in_r_bits_resp,
+  output        in_r_bits_last,
 
-  input         out_arready,
-  output        out_arvalid,
-  output [3:0]  out_arid,
-  output [31:0] out_araddr,
-  output [7:0]  out_arlen,
-  output [2:0]  out_arsize,
-  output [1:0]  out_arburst,
-  output        out_rready,
-  input         out_rvalid,
-  input  [3:0]  out_rid,
-  input  [31:0] out_rdata,
-  input  [1:0]  out_rresp,
-  input         out_rlast,
-  input         out_awready,
-  output        out_awvalid,
-  output [3:0]  out_awid,
-  output [31:0] out_awaddr,
-  output [7:0]  out_awlen,
-  output [2:0]  out_awsize,
-  output [1:0]  out_awburst,
-  input         out_wready,
-  output        out_wvalid,
-  output [31:0] out_wdata,
-  output [3:0]  out_wstrb,
-  output        out_wlast,
-                out_bready,
-  input         out_bvalid,
-  input  [3:0]  out_bid,
-  input  [1:0]  out_bresp
+  input         out_aw_ready,
+  output        out_aw_valid,
+  output [3:0]  out_aw_bits_id,
+  output [31:0] out_aw_bits_addr,
+  output [7:0]  out_aw_bits_len,
+  output [2:0]  out_aw_bits_size,
+  output [1:0]  out_aw_bits_burst,
+  output        out_aw_bits_lock,
+  output [3:0]  out_aw_bits_cache,
+  output [2:0]  out_aw_bits_prot,
+  output [3:0]  out_aw_bits_qos,
+  input         out_w_ready,
+  output        out_w_valid,
+  output [31:0] out_w_bits_data,
+  output [3:0]  out_w_bits_strb,
+  output        out_w_bits_last,
+  output        out_b_ready,
+  input         out_b_valid,
+  input  [3:0]  out_b_bits_id,
+  input  [1:0]  out_b_bits_resp,
+  input         out_ar_ready,
+  output        out_ar_valid,
+  output [3:0]  out_ar_bits_id,
+  output [31:0] out_ar_bits_addr,
+  output [7:0]  out_ar_bits_len,
+  output [2:0]  out_ar_bits_size,
+  output [1:0]  out_ar_bits_burst,
+  output        out_ar_bits_lock,
+  output [3:0]  out_ar_bits_cache,
+  output [2:0]  out_ar_bits_prot,
+  output [3:0]  out_ar_bits_qos,
+  output        out_r_ready,
+  input         out_r_valid,
+  input  [3:0]  out_r_bits_id,
+  input  [31:0] out_r_bits_data,
+  input  [1:0]  out_r_bits_resp,
+  input         out_r_bits_last
 );
 
-  assign in_arready = out_arready;
-  assign out_arvalid = in_arvalid;
-  assign out_arid = in_arid;
-  assign out_araddr = in_araddr;
-  assign out_arlen = in_arlen;
-  assign out_arsize = in_arsize;
-  assign out_arburst = in_arburst;
-  assign out_rready = in_rready;
-  assign in_rvalid = out_rvalid;
-  assign in_rid = out_rid;
-  assign in_rdata = out_rdata;
-  assign in_rresp = out_rresp;
-  assign in_rlast = out_rlast;
-  assign in_awready = out_awready;
-  assign out_awvalid = in_awvalid;
-  assign out_awid = in_awid;
-  assign out_awaddr = in_awaddr;
-  assign out_awlen = in_awlen;
-  assign out_awsize = in_awsize;
-  assign out_awburst = in_awburst;
-  assign in_wready = out_wready;
-  assign out_wvalid = in_wvalid;
-  assign out_wdata = in_wdata;
-  assign out_wstrb = in_wstrb;
-  assign out_wlast = in_wlast;
-  assign out_bready = in_bready;
-  assign in_bvalid = out_bvalid;
-  assign in_bid = out_bid;
-  assign in_bresp = out_bresp;
+  assign in_aw_ready = out_aw_ready;
+  assign out_aw_valid = in_aw_valid;
+  assign out_aw_bits_id = in_aw_bits_id;
+  assign out_aw_bits_addr = in_aw_bits_addr;
+  assign out_aw_bits_len = in_aw_bits_len;
+  assign out_aw_bits_size = in_aw_bits_size;
+  assign out_aw_bits_burst = in_aw_bits_burst;
+  assign out_aw_bits_lock = in_aw_bits_lock;
+  assign out_aw_bits_cache = in_aw_bits_cache;
+  assign out_aw_bits_prot = in_aw_bits_prot;
+  assign out_aw_bits_qos = in_aw_bits_qos;
+  assign in_w_ready = out_w_ready;
+  assign out_w_valid = in_w_valid;
+  assign out_w_bits_data = in_w_bits_data;
+  assign out_w_bits_strb = in_w_bits_strb;
+  assign out_w_bits_last = in_w_bits_last;
+  assign out_b_ready = in_b_ready;
+  assign in_b_valid = out_b_valid;
+  assign in_b_bits_id = out_b_bits_id;
+  assign in_b_bits_resp = out_b_bits_resp;
+
+  assign in_ar_ready = out_ar_ready;
+  assign out_ar_valid = in_ar_valid;
+  assign out_ar_bits_id = in_ar_bits_id;
+  assign out_ar_bits_addr = in_ar_bits_addr;
+  assign out_ar_bits_len = in_ar_bits_len;
+  assign out_ar_bits_size = in_ar_bits_size;
+  assign out_ar_bits_burst = in_ar_bits_burst;
+  assign out_ar_bits_lock = in_ar_bits_lock;
+  assign out_ar_bits_cache = in_ar_bits_cache;
+  assign out_ar_bits_prot = in_ar_bits_prot;
+  assign out_ar_bits_qos = in_ar_bits_qos;
+  assign out_r_ready = in_r_ready;
+  assign in_r_valid = out_r_valid;
+  assign in_r_bits_id = out_r_bits_id;
+  assign in_r_bits_data = out_r_bits_data;
+  assign in_r_bits_resp = out_r_bits_resp;
+  assign in_r_bits_last = out_r_bits_last;
+
+  wire unused_clock_reset = &{1'b0, clock, reset};
 
 endmodule
